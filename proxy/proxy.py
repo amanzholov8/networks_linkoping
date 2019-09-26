@@ -1,9 +1,12 @@
 #Our proxy implementation
 import sys, socket, thread
 
-BUFFER_SIZE = 8192
+BUFFER_SIZE = 8192 #maximum buffer size for socket
+
+#List of forbidden expressions
 FORBIDDEN = ["SpongeBob", "Britney Spears", "Paris Hilton", "Norrk??ping"]
 
+#Parses the url into webserver and port
 def parse(url):
     http_pos = url.find("://")
     if (http_pos==-1):
@@ -11,6 +14,7 @@ def parse(url):
     else:
         temp = url[(http_pos+3):]
 
+    #find the port position if any
     port_pos = temp.find(":")
 
     # find end of web server
@@ -20,40 +24,45 @@ def parse(url):
 
     webserver = ""
     port = -1
-    if (port_pos==-1 or webserver_pos < port_pos):
+    if (port_pos==-1 or webserver_pos < port_pos): #default port
         port = 80
         webserver = temp[:webserver_pos]
-    else:       # specific port
+    else: # specific port
         port = int((temp[(port_pos+1):])[:webserver_pos-port_pos-1])
         webserver = temp[:port_pos]
     
     return (webserver, port)
 
+#needed to redirect the client to NetNinny if forbidden website is requested
 def redirect(url):
-    webserver, port = parse(url)
+    webserver, _ = parse(url)
     return "HTTP/1.1 302 Found\r\nLocation: " + url + "\r\nHost: " + webserver + "\r\nConnection: close\r\n\r\n"
 
-def proxy_server(conn, client_addr, request, webserver, port, isForbiddenUrl, needContentCheck):
+#prints info about request
+def printout(type,request):
+    print type.upper(), "\t", request
+
+#called from process_request function
+def proxy_server(conn, client_addr, request, url, isForbiddenUrl, needContentCheck):
     try:
+        # parse the url to get webserver and port info
+        webserver, port = parse(url)
         # create a socket to connect to the web server
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.connect((webserver, port))
 
         if isForbiddenUrl:
-            s.shutdown(socket.SHUT_RDWR)
-            conn.shutdown(socket.SHUT_RD)
+            #redirect client to error page
             conn.send(redirect("http://zebroid.ida.liu.se/error1.html"))
         else:
-            s.send(request)         # send request to webserver
-
+            s.send(request) # send request to webserver
             while True:
                 # receive data from web server
                 reply = s.recv(BUFFER_SIZE)
-
-                isBadContent = False
-
                 if (len(reply) > 0):
-                    if needContentCheck:
+                    #check for forbidden words in the message body
+                    isBadContent = False
+                    if needContentCheck: #not media file type
                         lines = reply.split("\n")
                         for line in lines:
                             for expression in FORBIDDEN:
@@ -65,43 +74,39 @@ def proxy_server(conn, client_addr, request, webserver, port, isForbiddenUrl, ne
                                     isBadContent = True
                                     break
                             if isBadContent:
-                                print("Bad content")
+                                printout("Forbidden Content", url)
                                 break 
 
                     if isBadContent:
+                        #redirect client to error page
                         conn.send(redirect("http://zebroid.ida.liu.se/error2.html"))
                     else:
-                        # send to browser
+                        # not forbidden, send the reply to client
                         conn.send(reply)
-                else:
+                else: #stop the connection if failed to receive data
                     break
-        s.close()
-        conn.close()
+        s.close() #after done, close the server socket
+        conn.close() #close the client socket
     except socket.error, (value, message):
         s.close()
         conn.close()
         print ("Runtime Error:", message)
         sys.exit(1)
 
-def printout(type,request,address):
-    print address[0], "\t", type.upper(), "\t", request
-
+#called to process the request from client
 def process_request(conn, client_addr):
     try:    
         # get the request from browser
         request = conn.recv(BUFFER_SIZE)
-
         # parse the first line
         first_line = request.split('\n')[0]
-
         # get url
         url = first_line.split(' ')[1]
         
-        printout("Request",first_line,client_addr)
+        printout("Request",first_line)
 
         #check for forbidden word in url
         isForbiddenUrl = False
-        
         for expression in FORBIDDEN:
             if " " in expression:
                 if all(word in url for word in expression.split(' ')):
@@ -110,40 +115,38 @@ def process_request(conn, client_addr):
             if expression in url:
                 isForbiddenUrl = True
                 break
-        
         if isForbiddenUrl:
-            printout("Forbidden", url, client_addr)
+            printout("Forbidden URL", url)
         
-        #do we need to check the content
+        #do we need to check the content?
         needContentCheck = True
+        #do not check the content for following file types
         notChecked = [".jpg", ".jpeg", ".gif", ".png", ".js", ".cs"]
-
-        
         for x in notChecked:
             if url.endswith(x):
                 needContentCheck = False
-                break              
+                break
 
-        # find the webserver and port
-        webserver, port = parse(url)
-        
-        #print "Connect to:", webserver, port
-
-        proxy_server(conn, client_addr, request, webserver, port, isForbiddenUrl, needContentCheck)
+        #in this function the request is handled furhter
+        proxy_server(conn, client_addr, request, url, isForbiddenUrl, needContentCheck)
     except Exception, e:
         pass
 
+
+#The program starts running from here
+
+#Ask for listnening port from user
 try:
     listening_port = int(raw_input("Enter listeting port number: "))
-except KeyboardInterrupt:
+except KeyboardInterrupt: #if ctrl-c is pressed
     print("\n")
-    print("Ctrl-C pressed. Application shut down")
+    print("Ctrl-C pressed. Application is shutting down")
     sys.exit()
 
+#initialize the socket
 try:
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    #reuse the socket port
-    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1) #reuse the socket port
     s.bind(('', listening_port))
     s.listen(10)
     print("Socket initialized")
@@ -153,6 +156,7 @@ except Exception, e:
 
 while True:
     try:
+        #accept connection from client
         conn, client_addr = s.accept()
         # create a thread to handle request
         thread.start_new_thread(process_request, (conn, client_addr))
