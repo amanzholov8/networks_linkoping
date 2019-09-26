@@ -33,14 +33,15 @@ def parse(url):
     
     return (webserver, port)
 
-#needed to redirect the client to NetNinny if forbidden website is requested
-def redirect(url):
-    webserver, _ = parse(url)
-    return "HTTP/1.1 302 Found\r\nLocation: " + url + "\r\nHost: " + webserver + "\r\nConnection: close\r\n\r\n"
-
 #prints info about request
 def printout(type,request):
     print type.upper(), "\t", request
+
+#needed to redirect the client to NetNinny if forbidden website is requested
+def redirect(url):
+    webserver, _ = parse(url)
+    printout("Redirected to", url)
+    return "HTTP/1.1 302 Found\r\nLocation: " + url + "\r\nHost: " + webserver + "\r\nConnection: close\r\n\r\n"
 
 #called from process_request function
 def proxy_server(conn, client_addr, request, url, isForbiddenUrl, needContentCheck):
@@ -54,6 +55,9 @@ def proxy_server(conn, client_addr, request, url, isForbiddenUrl, needContentChe
         if isForbiddenUrl:
             #redirect client to error page
             conn.send(redirect("http://zebroid.ida.liu.se/error1.html"))
+            #needed to avoid Broken Pipe problem
+            s.shutdown(socket.SHUT_RDWR)
+            conn.shutdown(socket.SHUT_RD)
         else:
             s.send(request) # send request to webserver
             while True:
@@ -80,6 +84,9 @@ def proxy_server(conn, client_addr, request, url, isForbiddenUrl, needContentChe
                     if isBadContent:
                         #redirect client to error page
                         conn.send(redirect("http://zebroid.ida.liu.se/error2.html"))
+                        #needed to avoid Broken Pipe problem
+                        s.shutdown(socket.SHUT_RDWR)
+                        conn.shutdown(socket.SHUT_RD)
                     else:
                         # not forbidden, send the reply to client
                         conn.send(reply)
