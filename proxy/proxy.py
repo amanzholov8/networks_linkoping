@@ -97,7 +97,7 @@ def proxy_server(conn, client_addr, request, url, isForbiddenUrl, needContentChe
     except socket.error, (value, message):
         s.close()
         conn.close()
-        print ("Runtime Error:", message)
+        print ("Request Unsuccessful:", message)
         sys.exit(1)
 
 #called to process the request from client
