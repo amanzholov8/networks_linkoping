@@ -71,10 +71,10 @@ def proxy_server(conn, client_addr, request, url, isForbiddenUrl, needContentChe
                         for line in lines:
                             for expression in FORBIDDEN:
                                 if " " in expression:
-                                    if all(word in line for word in expression.split(' ')):
+                                    if all(word.lower() in line.lower() for word in expression.split(' ')):
                                         isBadContent = True
                                         break
-                                if expression in line:
+                                if expression.lower() in line.lower():
                                     isBadContent = True
                                     break
                             if isBadContent:
@@ -116,10 +116,10 @@ def process_request(conn, client_addr):
         isForbiddenUrl = False
         for expression in FORBIDDEN:
             if " " in expression:
-                if all(word in url for word in expression.split(' ')):
+                if all(word.lower() in url.lower() for word in expression.split(' ')):
                     isForbiddenUrl = True
                     break
-            if expression in url:
+            if expression.lower() in url.lower():
                 isForbiddenUrl = True
                 break
         if isForbiddenUrl:
