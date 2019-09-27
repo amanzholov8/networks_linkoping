@@ -128,7 +128,7 @@ def process_request(conn, client_addr):
         #do we need to check the content?
         needContentCheck = True
         #do not check the content for following file types
-        notChecked = [".jpg", ".jpeg", ".gif", ".png", ".js", ".cs"]
+        notChecked = [".jpg", ".jpeg", ".gif", ".png", ".js", ".cs", '.zip']
         for x in notChecked:
             if url.endswith(x):
                 needContentCheck = False
