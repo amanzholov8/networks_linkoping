@@ -10,7 +10,7 @@ public class RouterNode {
   //private int[][] distTable = new int[RouterSimulator.NUM_NODES][RouterSimulator.NUM_NODES];
   private int[] distVector = new int[RouterSimulator.NUM_NODES];
 
-  private boolean isPoison = false;
+  private boolean isPoison = true;
 
   //--------------------------------------------------
   public RouterNode(int ID, RouterSimulator sim, int[] costs) {
@@ -84,8 +84,14 @@ public class RouterNode {
     //check if poison reverse in enabled
     if (isPoison) {
       for (int i=0; i<sim.NUM_NODES; i++) {
-        if (routes[i] == pkt.destid)
+        //if router goes through destid to reach node i
+        //and if node i is not destination node
+        if (routes[i] == pkt.destid && i != pkt.destid) {
+          myGUI.println("" + i);
+          myGUI.println("" + pkt.mincost[i]);
           pkt.mincost[i] = sim.INFINITY;
+          myGUI.println("" + pkt.mincost[i]);
+        }
       }
     }    
     sim.toLayer2(pkt);
@@ -129,12 +135,16 @@ public class RouterNode {
   public void updateLinkCost(int dest, int newcost) {
     boolean changed = false;
     costs[dest] = newcost;
-
+    //if known mincost to dest is lower than newcost
+    //update the mincost
     if (distVector[dest] > newcost) {
       routes[dest] = dest;
       distVector[dest] = newcost;
       changed = true;
-    } else if (dest == routes[dest]) {
+    } 
+    //if we route through dest node, update the cost to that node
+    //even if the newcost is higher than min cost
+    else if (dest == routes[dest]) {
       distVector[dest] = newcost;
       changed = true;
     }
